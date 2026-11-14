@@ -18,13 +18,13 @@ services:
       - key: EnableHttpsRedirection
         value: "false"
       - key: ConnectionStrings__DefaultConnection
-        sync: false
+        value: "Data Source=pushpakclasses.db"
       - key: JwtSettings__Secret
         generateValue: true
       - key: SeedData__AdminUser__Email
-        value: admin@example.com
+        value: admin@pushpakclasses.com
       - key: SeedData__AdminUser__Password
-        sync: false
+        value: Admin@123
       - key: RedisSettings__Enabled
         value: "false"
       - key: HangfireSettings__UseInMemory

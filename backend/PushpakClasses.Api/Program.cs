@@ -54,10 +54,25 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.WithOrigins(allowedOrigins)
-              .AllowAnyHeader()
-              .AllowAnyMethod()
-              .AllowCredentials();
+        policy.SetIsOriginAllowed(origin =>
+        {
+            if (string.IsNullOrWhiteSpace(origin)) return false;
+            try
+            {
+                var uri = new Uri(origin);
+                return uri.Host == "localhost"
+                    || uri.Host == "127.0.0.1"
+                    || uri.Host.EndsWith("onrender.com", StringComparison.OrdinalIgnoreCase)
+                    || allowedOrigins.Any(o => string.Equals(o, origin, StringComparison.OrdinalIgnoreCase) || o.Contains(uri.Host));
+            }
+            catch
+            {
+                return false;
+            }
+        })
+        .AllowAnyHeader()
+        .AllowAnyMethod()
+        .AllowCredentials();
     });
 });
 
@@ -263,7 +278,12 @@ using (var scope = app.Services.CreateScope())
     try
     {
         var context = services.GetRequiredService<PushpakClassesDbContext>();
-        if (context.Database.IsRelational())
+        if (context.Database.IsSqlite())
+        {
+            logger.LogInformation("Checking and ensuring SQLite database schema...");
+            await context.Database.EnsureCreatedAsync();
+        }
+        else if (context.Database.IsRelational())
         {
             logger.LogInformation("Checking and applying pending database migrations...");
             await context.Database.MigrateAsync();

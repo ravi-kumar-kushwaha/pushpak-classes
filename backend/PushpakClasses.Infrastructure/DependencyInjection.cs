@@ -18,17 +18,35 @@ public static class DependencyInjection
         IConfiguration configuration)
     {
         var connectionString = configuration.GetConnectionString("DefaultConnection")
-            ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+            ?? configuration["CONNECTION_STRING"]
+            ?? configuration["DB_CONNECTION_STRING"]
+            ?? Environment.GetEnvironmentVariable("CONNECTION_STRING")
+            ?? "Data Source=pushpakclasses.db";
 
-        services.AddDbContextPool<PushpakClassesDbContext>(options =>
-            options.UseSqlServer(connectionString, sqlOptions =>
-            {
-                sqlOptions.MigrationsAssembly(typeof(PushpakClassesDbContext).Assembly.FullName);
-                sqlOptions.EnableRetryOnFailure(
-                    maxRetryCount: 5,
-                    maxRetryDelay: TimeSpan.FromSeconds(30),
-                    errorNumbersToAdd: null);
-            }), poolSize: 1024);
+        var isSqlite = connectionString.StartsWith("Data Source=", StringComparison.OrdinalIgnoreCase)
+            || connectionString.EndsWith(".db", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(configuration["DatabaseProvider"], "Sqlite", StringComparison.OrdinalIgnoreCase);
+
+        if (isSqlite)
+        {
+            services.AddDbContextPool<PushpakClassesDbContext>(options =>
+                options.UseSqlite(connectionString, sqliteOptions =>
+                {
+                    sqliteOptions.MigrationsAssembly(typeof(PushpakClassesDbContext).Assembly.FullName);
+                }), poolSize: 256);
+        }
+        else
+        {
+            services.AddDbContextPool<PushpakClassesDbContext>(options =>
+                options.UseSqlServer(connectionString, sqlOptions =>
+                {
+                    sqlOptions.MigrationsAssembly(typeof(PushpakClassesDbContext).Assembly.FullName);
+                    sqlOptions.EnableRetryOnFailure(
+                        maxRetryCount: 5,
+                        maxRetryDelay: TimeSpan.FromSeconds(30),
+                        errorNumbersToAdd: null);
+                }), poolSize: 1024);
+        }
 
         services.AddScoped<IPushpakClassesDbContext>(sp => sp.GetRequiredService<PushpakClassesDbContext>());
         services.AddSingleton<IPasswordHasherService, PasswordHasherService>();

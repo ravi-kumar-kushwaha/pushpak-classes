@@ -9,7 +9,9 @@
   <script>
     // Runtime environment configuration for cloud deployments
     window.__env = window.__env || {};
-    // Override window.__env.apiUrl at deploy time or leave unset to use defaults
+    if (window.location.hostname.includes('render.com')) {
+      window.__env.apiUrl = 'https://pushpakclasses-api.onrender.com/api';
+    }
   </script>
 </head>
 <body>
