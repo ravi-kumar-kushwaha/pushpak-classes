@@ -41,8 +41,6 @@ services:
     runtime: static
     buildCommand: cd frontend/pushpak-classes && npm install && npm run build -- --configuration=production
     staticPublishPath: frontend/pushpak-classes/dist/pushpak-classes/browser
-    plan: free
-    region: oregon
     routes:
       - type: rewrite
         source: /*
