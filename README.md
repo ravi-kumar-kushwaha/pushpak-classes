@@ -66,7 +66,18 @@ cp .env.example .env
 
 ---
 
-## 3. Quick Start with Docker Compose
+## 3. Zero-Cost Cloud Deployment
+
+For deploying PushpakClasses to the cloud using **100% free resources** (zero paid subscriptions or credit card requirements), see our step-by-step [**Deployment Guide (DEPLOYMENT.md)**](file:///DEPLOYMENT.md).
+
+* **1-Click Render.com Blueprint**: Automatically deploys the ASP.NET Core API (Docker) and Angular Frontend (Static Site) via [`render.yaml`](file:///render.yaml).
+* **Netlify CDN**: 1-click Angular SPA hosting with edge routing via [`netlify.toml`](file:///netlify.toml).
+* **Free Database**: Guide for Azure SQL Database Free Tier (32 GB lifetime free) or Oracle Cloud Always-Free Compute.
+* **Automated CI/CD**: GitHub Actions workflow ([`.github/workflows/ci-cd.yml`](file:///.github/workflows/ci-cd.yml)) for continuous testing and container building.
+
+---
+
+## 4. Quick Start with Docker Compose
 
 Running the complete multi-container topology (SQL Server 2022, Redis 7, 2 API Replicas, Nginx Load Balancer, and Angular Frontend):
 
