@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="PushpakClasses.Api/PushpakClasses.Api.csproj" />
+  <Project Path="PushpakClasses.Application/PushpakClasses.Application.csproj" />
+  <Project Path="PushpakClasses.Domain/PushpakClasses.Domain.csproj" />
+  <Project Path="PushpakClasses.Infrastructure/PushpakClasses.Infrastructure.csproj" />
+  <Project Path="PushpakClasses.UnitTests/PushpakClasses.UnitTests.csproj" />
+</Solution>

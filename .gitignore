@@ -1,0 +1,46 @@
+## .NET Core
+bin/
+obj/
+publish/
+**/publish/
+backups/
+**/backups/
+scratch/
+*.user
+*.userosscache
+*.suo
+*.userprefs
+.vs/
+.idea/
+*.DotSettings.user
+
+## EF Core Migrations bundle
+*.exe
+
+## Visual Studio Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+## Environment & Secrets
+.env
+.env.*
+!.env.example
+
+## Node & Frontend
+node_modules/
+dist/
+.angular/
+npm-debug.log
+yarn-error.log
+
+## Docker & Local DB
+*.db
+*.db-shm
+*.db-wal
+
+## OS generated
+.DS_Store
+Thumbs.db
