@@ -39,8 +39,10 @@ Log.Logger = new LoggerConfiguration()
 
 builder.Host.UseSerilog();
 
-// Add services to the container
-builder.Services.AddControllers()
+try
+{
+    // Add services to the container
+    builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
@@ -327,14 +329,16 @@ using (var scope = app.Services.CreateScope())
     await seeder.SeedAsync();
 }
 
-try
-{
     Log.Information("Starting PushpakClasses API (Hardened for 10,000 concurrent users)...");
     app.Run();
 }
 catch (Exception ex)
 {
-    Log.Fatal(ex, "PushpakClasses API terminated unexpectedly.");
+    Log.Fatal(ex, "PushpakClasses API failed to start: {Message}", ex.Message);
+    Console.Error.WriteLine($"\n=======================================================");
+    Console.Error.WriteLine($"CRITICAL STARTUP ERROR: {ex.Message}");
+    Console.Error.WriteLine($"=======================================================\n");
+    Environment.Exit(1);
 }
 finally
 {
