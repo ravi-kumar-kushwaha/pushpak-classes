@@ -20,33 +20,54 @@ public static class DependencyInjection
         var connectionString = configuration.GetConnectionString("DefaultConnection")
             ?? configuration["CONNECTION_STRING"]
             ?? configuration["DB_CONNECTION_STRING"]
-            ?? Environment.GetEnvironmentVariable("CONNECTION_STRING")
-            ?? "Data Source=pushpakclasses.db";
+            ?? Environment.GetEnvironmentVariable("CONNECTION_STRING");
 
-        var isSqlite = connectionString.StartsWith("Data Source=", StringComparison.OrdinalIgnoreCase)
-            || connectionString.EndsWith(".db", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(configuration["DatabaseProvider"], "Sqlite", StringComparison.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(connectionString) || connectionString.Contains("YourSecurePasswordHere", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                "CRITICAL DATABASE CONFIGURATION ERROR: 'ConnectionStrings__DefaultConnection' (or 'ConnectionStrings:DefaultConnection') is missing. " +
+                "PushpakClasses requires a persistent Microsoft SQL Server connection string and refuses to start without one. " +
+                "Please configure 'ConnectionStrings__DefaultConnection' in your environment or Render dashboard.");
+        }
 
-        if (isSqlite)
+        // Fail-Fast: Reject SQLite, in-memory, or invalid providers
+        if (connectionString.Contains(".db", StringComparison.OrdinalIgnoreCase) ||
+            connectionString.Contains("sqlite", StringComparison.OrdinalIgnoreCase) ||
+            connectionString.Contains("Filename=", StringComparison.OrdinalIgnoreCase) ||
+            connectionString.StartsWith("Data Source=pushpakclasses.db", StringComparison.OrdinalIgnoreCase))
         {
-            services.AddDbContextPool<PushpakClassesDbContext>(options =>
-                options.UseSqlite(connectionString, sqliteOptions =>
-                {
-                    sqliteOptions.MigrationsAssembly(typeof(PushpakClassesDbContext).Assembly.FullName);
-                }), poolSize: 256);
+            throw new InvalidOperationException(
+                $"CRITICAL DATABASE CONFIGURATION ERROR: Non-persistent/SQLite database detected in 'DefaultConnection'. " +
+                "PushpakClasses strictly requires Microsoft SQL Server for data persistence. " +
+                "Please configure a valid SQL Server connection string (e.g. from Azure SQL Database or your hosted SQL Server).");
         }
-        else
+
+        Microsoft.Data.SqlClient.SqlConnectionStringBuilder sqlBuilder;
+        try
         {
-            services.AddDbContextPool<PushpakClassesDbContext>(options =>
-                options.UseSqlServer(connectionString, sqlOptions =>
-                {
-                    sqlOptions.MigrationsAssembly(typeof(PushpakClassesDbContext).Assembly.FullName);
-                    sqlOptions.EnableRetryOnFailure(
-                        maxRetryCount: 5,
-                        maxRetryDelay: TimeSpan.FromSeconds(30),
-                        errorNumbersToAdd: null);
-                }), poolSize: 1024);
+            sqlBuilder = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(connectionString);
         }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                $"CRITICAL DATABASE CONFIGURATION ERROR: The provided connection string is not a valid Microsoft SQL Server connection string: {ex.Message}", ex);
+        }
+
+        if (string.IsNullOrWhiteSpace(sqlBuilder.DataSource) || string.IsNullOrWhiteSpace(sqlBuilder.InitialCatalog))
+        {
+            throw new InvalidOperationException(
+                "CRITICAL DATABASE CONFIGURATION ERROR: SQL Server connection string must specify both a Server/DataSource and a Database/InitialCatalog.");
+        }
+
+        services.AddDbContextPool<PushpakClassesDbContext>(options =>
+            options.UseSqlServer(connectionString, sqlOptions =>
+            {
+                sqlOptions.MigrationsAssembly(typeof(PushpakClassesDbContext).Assembly.FullName);
+                sqlOptions.EnableRetryOnFailure(
+                    maxRetryCount: 5,
+                    maxRetryDelay: TimeSpan.FromSeconds(30),
+                    errorNumbersToAdd: null);
+            }), poolSize: 1024);
 
         services.AddScoped<IPushpakClassesDbContext>(sp => sp.GetRequiredService<PushpakClassesDbContext>());
         services.AddSingleton<IPasswordHasherService, PasswordHasherService>();

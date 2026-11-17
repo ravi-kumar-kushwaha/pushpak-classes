@@ -18,8 +18,12 @@ using PushpakClasses.Infrastructure;
 using PushpakClasses.Infrastructure.Persistence;
 using Serilog;
 
-// Load .env file if available in working or root directories
-LoadDotEnv();
+// Load .env file if in Development environment
+var envName = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+if (string.Equals(envName, "Development", StringComparison.OrdinalIgnoreCase) || string.IsNullOrEmpty(envName))
+{
+    LoadDotEnv();
+}
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -270,32 +274,57 @@ catch (Exception ex)
     Log.Warning(ex, "Failed to initialize Hangfire Dashboard/Recurring jobs. (Requires active persistence storage).");
 }
 
-// 9. Apply migrations and seed default Admin user on startup
+// 9. Apply migrations, audit persistence, and seed default Admin user on startup (Fail-Fast)
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
     var logger = services.GetRequiredService<ILogger<Program>>();
+    var context = services.GetRequiredService<PushpakClassesDbContext>();
+    var config = services.GetRequiredService<IConfiguration>();
+
+    logger.LogInformation("Applying pending database migrations to SQL Server...");
+    await context.Database.MigrateAsync();
+
+    // Audit and log persistent database connection details and record counts (No secrets!)
+    var rawConnStr = config.GetConnectionString("DefaultConnection")
+        ?? config["CONNECTION_STRING"]
+        ?? string.Empty;
+
+    string serverHost = "Unknown";
+    string databaseName = "Unknown";
     try
     {
-        var context = services.GetRequiredService<PushpakClassesDbContext>();
-        if (context.Database.IsSqlite())
-        {
-            logger.LogInformation("Checking and ensuring SQLite database schema...");
-            await context.Database.EnsureCreatedAsync();
-        }
-        else if (context.Database.IsRelational())
-        {
-            logger.LogInformation("Checking and applying pending database migrations...");
-            await context.Database.MigrateAsync();
-        }
+        var sqlBuilder = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(rawConnStr);
+        serverHost = sqlBuilder.DataSource;
+        databaseName = sqlBuilder.InitialCatalog;
+    }
+    catch { }
 
-        var seeder = services.GetRequiredService<DbSeeder>();
-        await seeder.SeedAsync();
-    }
-    catch (Exception ex)
-    {
-        logger.LogWarning(ex, "Database migration/seed skipped at startup. (Start SQL Server container to complete migration/seeding).");
-    }
+    var userCount = await context.Users.IgnoreQueryFilters().CountAsync();
+    var quizCount = await context.Quizzes.IgnoreQueryFilters().CountAsync();
+    var categoryCount = await context.Categories.IgnoreQueryFilters().CountAsync();
+    var attemptCount = await context.QuizAttempts.IgnoreQueryFilters().CountAsync();
+
+    logger.LogInformation(
+        "[PERSISTENCE AUDIT] Connected to SQL Server.\n" +
+        "  - Provider: {Provider}\n" +
+        "  - Server Host: {ServerHost}\n" +
+        "  - Database: {Database}\n" +
+        "  - Existing Record Counts:\n" +
+        "      * Users: {UserCount}\n" +
+        "      * Quizzes: {QuizCount}\n" +
+        "      * Categories: {CategoryCount}\n" +
+        "      * Attempts: {AttemptCount}",
+        context.Database.ProviderName,
+        serverHost,
+        databaseName,
+        userCount,
+        quizCount,
+        categoryCount,
+        attemptCount);
+
+    var seeder = services.GetRequiredService<DbSeeder>();
+    await seeder.SeedAsync();
 }
 
 try
@@ -361,10 +390,18 @@ public partial class Program
 
     internal static void MapEnvironmentVariables(ConfigurationManager configuration)
     {
-        var conn = Environment.GetEnvironmentVariable("CONNECTION_STRING") ?? Environment.GetEnvironmentVariable("DB_CONNECTION_STRING");
-        if (!string.IsNullOrWhiteSpace(conn))
+        var explicitConn = Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection");
+        if (!string.IsNullOrWhiteSpace(explicitConn))
         {
-            configuration["ConnectionStrings:DefaultConnection"] = conn;
+            configuration["ConnectionStrings:DefaultConnection"] = explicitConn;
+        }
+        else
+        {
+            var conn = Environment.GetEnvironmentVariable("CONNECTION_STRING") ?? Environment.GetEnvironmentVariable("DB_CONNECTION_STRING");
+            if (!string.IsNullOrWhiteSpace(conn))
+            {
+                configuration["ConnectionStrings:DefaultConnection"] = conn;
+            }
         }
 
         var jwtSecret = Environment.GetEnvironmentVariable("JWT_SECRET");
